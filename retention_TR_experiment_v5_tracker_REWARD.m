@@ -1,4 +1,4 @@
-function varargout = retention_TR_experiment_v5_tracker_TARGET(varargin)
+function varargout = retention_TR_experiment_v5_tracker_REWARD(varargin)
 % Screen('Preference', 'SkipSyncTests', 1);
 %% Specify trial list
 % ultimately replace this section with code to load in a separately
@@ -38,8 +38,9 @@ screen_dim2 = screen_dims(2);
     trial_home_numbers,...
     trial_type,...
     prescribed_PT,...
-    trial_stimA_numbers] = ...
-    generate_trial_table_v2(sub_ID); %for E5v1, remove the *_v2 designator
+    trial_stimA_numbers,...
+    reward] = ...
+    generate_trial_table_vReward(sub_ID); %for E5v1, remove the *_v2 designator
 
 load('camera_params');
 load('mm_per_pix');
@@ -50,6 +51,7 @@ trial_home_numbers_MASTER = trial_home_numbers;
 trial_type_MASTER = trial_type; 
 prescribed_PT_MASTER = prescribed_PT;
 trial_stimA_numbers_MASTER = trial_stimA_numbers;
+reward_MASTER = reward;
 
 % angle_error = angle_error;
 c_rr = cosd(angle_error);
@@ -119,20 +121,27 @@ SCREEN_COORD_Y = screen_dims(2);
 VIA_PT_TH = 25;
 SCORE_LOC = [1800 40];
 
-% InitializePsychSound
-% pahandle = PsychPortAudio('Open');
-% 
-% Ts = 1/44100;
-% sound_dur = .1;
-% tone_freq1 = 1000;
-% tone_freq2 = 1700;
-% time = Ts:Ts:.1;
+InitializePsychSound
+pahandle = PsychPortAudio('Open');
+
+Ts = 1/44100;
+sound_dur = .1;
+tone_freq1 = 1000;
+tone_freq2 = 1700;
+time = Ts:Ts:.1;
 % tone_signal1 = .1*sin(tone_freq1*time);
-% tone_signal2 = .1*sin(tone_freq2*time);
-% 
+% sound_reward = tone_signal1;
+sound_reward_ = audioread('coin_flip3.mov');
+sound_reward_ = sound_reward_';
+tone_signal2 = .1*sin(tone_freq2*time);
+sound_neurtral_ = tone_signal2;
+sound_neurtral_ = repmat(sound_neurtral_, 2, 1);
+
 % sound_data = [tone_signal1, zeros(1, round(.4/Ts)), tone_signal1, zeros(1, round(.4/Ts)), tone_signal2];
 % sound_data2 = repmat(sound_data, 2, 1);
 % PsychPortAudio('FillBuffer', pahandle, sound_data2);
+% sound_reward_ = repmat(sound_reward, 2, 1);
+% sound_neurtral_ = repmat(sound_neutral, 2, 1);
 
 cursor_color = [0 0 0]';
 cursor_dims = [-10 -10 10 10]'; %box dimensions defining circle around center
@@ -152,7 +161,7 @@ screens=Screen('Screens');
 screenNumber=min(screens);
 [win, rect] = Screen('OpenWindow', screenNumber, []); %[0 0 1600 900]);
 
-for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks: [3,4,5,7], mixed blocks: [6 8]
+for block_num = [1:5 9] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks: [3,4,5,7], mixed blocks: [6 8]
     switch block_num
         case 1
             this_trials = 1:12;
@@ -180,6 +189,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
     trial_home_numbers = trial_home_numbers_MASTER(this_trials);
     trial_stimA_numbers = trial_stimA_numbers_MASTER(this_trials);
     prescribed_PT = prescribed_PT_MASTER(this_trials);
+    reward = reward_MASTER(this_trials);
     score = 0;
     
     N_TRS = length(trial_target_numbers);
@@ -204,6 +214,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
     Data.params.trial_stimA_numbers = trial_stimA_numbers;
     Data.params.prescribed_PT = prescribed_PT;
     Data.Score = nan(N_TRS, 1);
+    Data.Reward_assigned = reward;
 
     %% initialize kinematics
 %     kinematics = nan(pre_alloc_samps, 3);
@@ -252,6 +263,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
             mov_begun = 0;
             mov_ended = 0;
             increment_score = [0 0];
+            tone_played = 0;
     
             curr_target = targ_coords_base(trial_home_numbers(i_tr), :);
             trial_home_position = curr_target; %the home position on this target
@@ -310,6 +322,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                 delays(5,k)= toc(del_1);
                  %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
 
+                % Detail display elements:
                 kinematics(k_samp, :) = [GetSecs - exp_time, xr, yr];% translate to screen coordinates
                 Screen('FillOval', win, [cursor_color, screen_color_buff],...
                     [[kinematics(k_samp, 2:3), kinematics(k_samp, 2:3)]' + cursor_dims, ...
@@ -356,6 +369,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                     Screen('FrameOval', win, [0, 250, 0]',...
                         [home_position home_position]' + [-VIA_PT_TH -VIA_PT_TH VIA_PT_TH VIA_PT_TH]');
                 end
+                
                 % do RT computation:
                 %%% RT %%%
                 home_dist = norm(trial_home_position - kinematics(k_samp, 2:3));
@@ -364,8 +378,7 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                     mov_begun = 1;
                     move_start_time = (GetSecs - trial_time); %toc(trial_time);
                 end
-                
-                
+
                 targ_dist = norm(trial_target_position - kinematics(k_samp, 2:3));
                 % if if the bubble has started shrinking, and the cursor
                 % gets to inside the target
@@ -379,7 +392,23 @@ for block_num = 1:8 %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                         targ_coords_base(trial_target_numbers(i_tr), :)]' + cursor_dims;
                     screen_color_buff(:, k_oval_buff) = [0 250 0];
                     if increment_score(2) == 0
-                        increment_score(2) = 1;
+                        if reward(i_tr) > 0
+                            increment_score(2) = 10;
+                        else
+                            increment_score(2) = 1;
+                        end
+                    end
+                    if tone_played == 0
+                        if reward(i_tr) > 0 
+                            %play reward tone:
+                            PsychPortAudio('FillBuffer', pahandle, sound_reward_);
+                            startTime = PsychPortAudio('Start', pahandle);
+                        else
+                            %play neutral tone:
+                            PsychPortAudio('FillBuffer', pahandle, sound_neurtral_);
+                            startTime = PsychPortAudio('Start', pahandle);
+                        end
+                        tone_played = 1;
                     end
                 end
                 %%% RT %%%
