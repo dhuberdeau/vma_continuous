@@ -1,5 +1,10 @@
 function varargout = retention_TR_experiment_v5_tracker_REWARD(varargin)
-% Screen('Preference', 'SkipSyncTests', 1);
+Screen('Preference', 'SkipSyncTests', 1);
+
+%% specify whether to use tracker or just the computer mouse:
+USE_TRACKER = 1;
+
+
 %% Specify trial list
 % ultimately replace this section with code to load in a separately
 % prepared trial table file.
@@ -8,9 +13,15 @@ AssertOpenGL;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
 
 % screen_dims = [1600, 900];
-screen_dims = [1920, 1080];
+if USE_TRACKER
+    screen_dims = [1920, 1080];
+    TARG_LEN = 350;
+else
+    screen_dims = [1920, 1080]./2;
+    TARG_LEN = min(screen_dims)*.4;
+end
 home_position = screen_dims/2;
-TARG_LEN = 350;
+
 % targ_angles = 15+(0:60:300);
 targ_angles = [0:90:300, 45:90:359];
 targ_coords_base = TARG_LEN*[cosd(targ_angles)', sind(targ_angles)'] + home_position;
@@ -29,10 +40,18 @@ catch
     sub_ID = ['sub_', rand_id];
 end
 
-res1 = 1920;
-res2 = 1080;
-screen_dim1 = screen_dims(1);
-screen_dim2 = screen_dims(2);
+if USE_TRACKER
+    res1 = 1920;
+    res2 = 1080;
+    screen_dim1 = screen_dims(1);
+    screen_dim2 = screen_dims(2);
+    DISC_SIZE = 40;
+else
+    res1 = screen_dims(1);
+    res2 = screen_dims(2);
+    screen_dim1 = res1;
+    screen_dim2 = res2;
+end
 
 [trial_target_numbers,...
     trial_home_numbers,...
@@ -41,10 +60,18 @@ screen_dim2 = screen_dims(2);
     trial_stimA_numbers,...
     reward] = ...
     generate_trial_table_vReward(sub_ID); %for E5v1, remove the *_v2 designator
+if USE_TRACKER
+    load('camera_params');
+    load('mm_per_pix');
+    load('camera_angle_calibration.mat');
+    
+    % angle_error = angle_error;
+    c_rr = cosd(angle_error);
+    s_rr = sind(angle_error);
+    ROT_MAT = [c_rr s_rr; -s_rr c_rr];
+end
+% otherwise, don't load those things
 
-load('camera_params');
-load('mm_per_pix');
-load('camera_angle_calibration.mat');
 
 trial_target_numbers_MASTER = trial_target_numbers;
 trial_home_numbers_MASTER = trial_home_numbers;
@@ -53,24 +80,22 @@ prescribed_PT_MASTER = prescribed_PT;
 trial_stimA_numbers_MASTER = trial_stimA_numbers;
 reward_MASTER = reward;
 
-% angle_error = angle_error;
-c_rr = cosd(angle_error);
-s_rr = sind(angle_error);
-ROT_MAT = [c_rr s_rr; -s_rr c_rr];
 
-ind1 = repmat((1:res2)', 1, res1);
-ind2 = repmat((1:res1), res2, 1);
+if USE_TRACKER
+    ind1 = repmat((1:res2)', 1, res1);
+    ind2 = repmat((1:res1), res2, 1);
 
-DISC_SIZE = 40;
+    ind1_d = repmat((1:DISC_SIZE:res2)', 1, res1/DISC_SIZE);
+    ind2_d = repmat((1:DISC_SIZE:res1), res2/DISC_SIZE, 1);
+    SUBWIN_SIZE = 75;
+    ind1 = repmat((1:res2)', 1, res1);
+    ind2 = repmat((1:res1), res2, 1);
 
-ind1_d = repmat((1:DISC_SIZE:res2)', 1, res1/DISC_SIZE);
-ind2_d = repmat((1:DISC_SIZE:res1), res2/DISC_SIZE, 1);
-SUBWIN_SIZE = 75;
-ind1 = repmat((1:res2)', 1, res1);
-ind2 = repmat((1:res1), res2, 1);
-
-RMIN = 0;
-RMAX = .025;
+    RMIN = 0;
+    RMAX = .025;
+else
+    
+end
 
 pre_alloc_samps = 36000; %enough for 10 minutes blocks
 pre_alloc_trial = 15*60; %enough for 15 second trials
@@ -159,9 +184,13 @@ SUB_NUM_ = sub_ID;
 
 screens=Screen('Screens');
 screenNumber=min(screens);
-[win, rect] = Screen('OpenWindow', screenNumber, []); %[0 0 1600 900]);
+if USE_TRACKER
+    [win, rect] = Screen('OpenWindow', screenNumber);%, [], [0 0 res1 res2]);
+else
+    [win, rect] = Screen('OpenWindow', screenNumber, [], [0 0 res1 res2]);
+end
 
-for block_num = [1:5 9] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks: [3,4,5,7], mixed blocks: [6 8]
+for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks: [3,4,5,7], mixed blocks: [6 8]
     switch block_num
         case 1
             this_trials = 1:12;
@@ -226,11 +255,14 @@ for block_num = [1:5 9] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blo
     %% run through trial list
 
     try
+        if USE_TRACKER
         %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
         grabber = Screen('OpenVideoCapture', win);
         Screen('StartVideoCapture', grabber, 60, 1);
         %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
-
+        else
+            
+        end
 %         exp_time = tic;
         exp_time = GetSecs;
         for i_tr = 1:N_TRS
@@ -274,53 +306,64 @@ for block_num = [1:5 9] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blo
             STIM_ISI_DUR = (RET_TIME + TR_TIME) - WT_TIME - prescribed_PT(i_tr) - STIM_A_TIME_DUR - STIM_B_TIME_DUR;
             while ~isequal(state, 'end_state')
 
-                % record position data and draw all text/pics/objects
-                 %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
-                k = sum(~isnan(x(1,:)))+1;
-                del_1 = tic;
-                [tex, pts, nrdropped, imtext]=Screen('GetCapturedImage', win, grabber, 1, [], 2);
-                image_capture_time(k_samp) = pts - exp_time;
-                delays(1,k) = toc(del_1);
-                del_1 = tic;
-                img_ = imtext(:, 1:DISC_SIZE:end, 1:DISC_SIZE:end);
-                img = permute(img_([3,2,1], :,:), [3,2,1]);
-                b = rgb2hsv(img);
-                delays(2,k) = toc(del_1);
-                del_1 = tic;
-                im_r = inRange(b, [RMAX 1 1], [RMIN 0.5 0.5]);
-                trk_y_rd = round(median(ind1_d(im_r)));
-                trk_x_rd = round(median(ind2_d(im_r)));
-                delays(3,k) = toc(del_1);
-                del_1 = tic;
-                img_ = imtext(:, max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]), max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]));
-                img = permute(img_([3 2 1], :, :), [3 2 1]);
-                c_r = rgb2hsv(img);
-                im_r = inRange(c_r, [.02 1 1], [0 0.5 0.5]);
-                rel_ind2 = ind2(max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]),max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]));
-                rel_ind1 = ind1(max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]),max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]));
-                trk_y_r = median(rel_ind1(im_r));
-                trk_x_r = median(rel_ind2(im_r));
-                delays(4,:) = toc(del_1);
-                del_1 = tic;
-                if ~isempty(trk_x_r) && ~isempty(trk_y_r)
-                    try
-                        calib_pts_ = undistortPoints([trk_x_r, trk_y_r], camera_params);
-                        calib_pts = (calib_pts_ - [res1, res2]/2)*ROT_MAT + [res1, res2]/2;
-                    catch
+                if USE_TRACKER
+                    % record position data and draw all text/pics/objects
+                     %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
+                    k = sum(~isnan(x(1,:)))+1;
+                    del_1 = tic;
+                    [tex, pts, nrdropped, imtext]=Screen('GetCapturedImage', win, grabber, 1, [], 2);
+                    image_capture_time(k_samp) = pts - exp_time;
+                    delays(1,k) = toc(del_1);
+                    del_1 = tic;
+                    img_ = imtext(:, 1:DISC_SIZE:end, 1:DISC_SIZE:end);
+                    img = permute(img_([3,2,1], :,:), [3,2,1]);
+                    b = rgb2hsv(img);
+                    delays(2,k) = toc(del_1);
+                    del_1 = tic;
+                    im_r = inRange(b, [RMAX 1 1], [RMIN 0.5 0.5]);
+                    trk_y_rd = round(median(ind1_d(im_r)));
+                    trk_x_rd = round(median(ind2_d(im_r)));
+                    delays(3,k) = toc(del_1);
+                    del_1 = tic;
+                    img_ = imtext(:, max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]), max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]));
+                    img = permute(img_([3 2 1], :, :), [3 2 1]);
+                    c_r = rgb2hsv(img);
+                    im_r = inRange(c_r, [.02 1 1], [0 0.5 0.5]);
+                    rel_ind2 = ind2(max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]),max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]));
+                    rel_ind1 = ind1(max([(trk_y_rd - SUBWIN_SIZE),1]):min([(trk_y_rd + SUBWIN_SIZE),res2]),max([(trk_x_rd - SUBWIN_SIZE),1]):min([(trk_x_rd + SUBWIN_SIZE), res1]));
+                    trk_y_r = median(rel_ind1(im_r));
+                    trk_x_r = median(rel_ind2(im_r));
+                    delays(4,:) = toc(del_1);
+                    del_1 = tic;
+                    if ~isempty(trk_x_r) && ~isempty(trk_y_r)
+                        try
+                            calib_pts_ = undistortPoints([trk_x_r, trk_y_r], camera_params);
+                            calib_pts = (calib_pts_ - [res1, res2]/2)*ROT_MAT + [res1, res2]/2;
+                        catch
+                            calib_pts = nan(1,2);
+                        end
+                    else
                         calib_pts = nan(1,2);
                     end
+                    x(1,k) = calib_pts(1,1)*mm_pix;
+                    y(1,k) = calib_pts(1,2)*mm_pix;
+    %                 tim(k) = toc(exp_time);
+                    tim(k) = GetSecs - exp_time;
+                    xr = calib_pts(1,1)*screen_dims(1)/res1;
+                    yr = calib_pts(1,2)*screen_dims(2)/res2;
+                    Screen('Close', tex);
+                    delays(5,k)= toc(del_1);
+                     %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
                 else
-                    calib_pts = nan(1,2);
+                    k = sum(~isnan(x(1,:)))+1;
+                    time_1 = GetSecs;
+                    [xr, yr, b] = GetMouse(win);
+                    image_capture_time(k_samp) = GetSecs - exp_time;
+                    delays(5, k) = GetSecs - time_1;
+                    x(1,k) = xr;
+                    y(1,k) = yr;
+                    tim(k) = GetSecs - exp_time;
                 end
-                x(1,k) = calib_pts(1,1)*mm_pix;
-                y(1,k) = calib_pts(1,2)*mm_pix;
-%                 tim(k) = toc(exp_time);
-                tim(k) = GetSecs - exp_time;
-                xr = calib_pts(1,1)*screen_dims(1)/res1;
-                yr = calib_pts(1,2)*screen_dims(2)/res2;
-                Screen('Close', tex);
-                delays(5,k)= toc(del_1);
-                 %%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA KAPTURE
 
                 % Detail display elements:
                 kinematics(k_samp, :) = [GetSecs - exp_time, xr, yr];% translate to screen coordinates
