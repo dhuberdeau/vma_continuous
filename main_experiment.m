@@ -1,9 +1,8 @@
-function varargout = retention_TR_experiment_v5_tracker_REWARD(varargin)
+function varargout = main_experiment(varargin)
 Screen('Preference', 'SkipSyncTests', 1);
 
 %% specify whether to use tracker or just the computer mouse:
 USE_TRACKER = 0;
-
 
 %% Specify trial list
 % ultimately replace this section with code to load in a separately
@@ -15,11 +14,10 @@ AssertOpenGL;
 % screen_dims = [1600, 900];
 if USE_TRACKER
     screen_dims = [1920, 1080];
-    TARG_LEN = 350;
 else
     screen_dims = [1920, 1080]./2;
-    TARG_LEN = min(screen_dims)*.4;
 end
+TARG_LEN = min(screen_dims)*.4;
 home_position = screen_dims/2;
 
 % targ_angles = 15+(0:60:300);
@@ -41,8 +39,8 @@ catch
 end
 
 if USE_TRACKER
-    res1 = 1920;
-    res2 = 1080;
+    res1 = screen_dims(1);
+    res2 = screen_dims(2);
     screen_dim1 = screen_dims(1);
     screen_dim2 = screen_dims(2);
     DISC_SIZE = 40;
@@ -93,7 +91,6 @@ if USE_TRACKER
 
     RMIN = 0;
     RMAX = .025;
-else
     
 end
 
@@ -105,7 +102,7 @@ tim = nan(1, pre_alloc_samps); %pre-allocate space for 10-min. of 60-hz recordin
 
 
 delays = nan(5,pre_alloc_samps);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA CAPTURE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%% CAMERA CAPTUREstate_elapsed_time
 
 %%
 
@@ -347,7 +344,6 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                     end
                     x(1,k) = calib_pts(1,1)*mm_pix;
                     y(1,k) = calib_pts(1,2)*mm_pix;
-    %                 tim(k) = toc(exp_time);
                     tim(k) = GetSecs - exp_time;
                     xr = calib_pts(1,1)*screen_dims(1)/res1;
                     yr = calib_pts(1,2)*screen_dims(2)/res2;
@@ -372,7 +368,6 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                     screen_oval_buff]);
                 Screen('FrameOval', win, [74, 96, 96]', [home_position home_position]' + target_circle_dims');
                 Screen('FillOval', win, [0, 0, 0]', [home_position home_position]' + cursor_dims');
-%                 Screen('FrameOval', win, repmat([74 96 96]', 1, 4),  [targ_coords_base(1:4,:), targ_coords_base(1:4,:)]' + cursor_dims);
                 Screen('DrawText', win, num2str(score), SCORE_LOC(1), SCORE_LOC(2));
                 if draw_text_flag == 1
                     for i_text = 1:length(screen_text_buff)
@@ -386,21 +381,15 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                 end
                 if draw_bubble_flag == 1
                     Screen('FrameOval', win, 1, [home_position home_position]' + screen_bubble_buff(:)); 
-%                     if norm(kinematics(k_samp, 2:3) - home_position) < screen_bubble_buff(end)
-%                         draw_red_cursor_flag = 1;
-%                     end % no longer do red cursor manipulation
                     draw_target_fill = 1;
                     if norm(kinematics(k_samp, 2:3) - home_position) < VIA_PT_TH
                         % via point was intersected
                         draw_green_center = 1;
                     end
                 end
-%                 if draw_red_cursor_flag
-%                     Screen('FillOval', win, [255, 0, 10]',...
-%                         [kinematics(k_samp, 2:3), kinematics(k_samp, 2:3)]' + cursor_dims);
-%                 end
+
                 if draw_green_center
-                    % if the bubble is shrinking and the subject intersepts
+                    % if the bubble is shrinking and the subject intercepts
                     % the center
                     Screen('FillOval', win, [0, 250, 0]',...
                         [home_position home_position]' + [-VIA_PT_TH -VIA_PT_TH VIA_PT_TH VIA_PT_TH]');
@@ -498,10 +487,6 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                         else
                             % check if tones need to be started:
                             cur_state_time = GetSecs - state_time;
-%                             if cur_state_time > RET_TIME && tone_flag
-%                                 startTime = PsychPortAudio('Start', pahandle);
-%                                 tone_flag = 0;
-%                             end
                             
                             % check state of bubble collapse &/or expand
                             if cur_state_time >= TR_TIME + RET_TIME
@@ -632,27 +617,6 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                                     end
                                 case 'post_wait'
                                     sub_entrance = 0;
-%                                     if cur_state_time >= TR_TIME + RET_TIME
-%                                         bubble_rad = (cur_state_time - (TR_TIME + RET_TIME))*bubble_expand_rate;
-%                                         if bubble_rad > TARG_LEN
-%                                             draw_bubble_flag = 0;
-%                                         else
-%                                             screen_bubble_buff = [-bubble_rad; -bubble_rad; bubble_rad; bubble_rad];
-%                                             draw_bubble_flag = 1;
-%                                         end
-%                                     elseif cur_state_time >= (TR_TIME + RET_TIME - (TARG_LEN/bubble_expand_rate))
-%                                         % time to start shrinking the
-%                                         % bubble from the outside in
-%                                         bubble_rad = TARG_LEN - (cur_state_time - (TR_TIME + RET_TIME - (TARG_LEN/bubble_expand_rate)))*bubble_expand_rate;
-%                                         if bubble_rad > TARG_LEN
-%                                             draw_bubble_flag = 0;
-%                                         else
-%                                             screen_bubble_buff = [-bubble_rad; -bubble_rad; bubble_rad; bubble_rad];
-%                                             draw_bubble_flag = 1;
-%                                         end
-%                                     else
-%                                         draw_bubble_flag = 0;
-%                                     end
                                     
                                     if cur_state_time >= TR_TIME + RET_TIME + MOV_TIME
                                         % finally move to ITI state
@@ -670,17 +634,10 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                             ITI_state_time = GetSecs - trial_time; %toc(trial_time);
                             draw_red_cursor_flag = 0;
                             if abs(Data.RT(i_tr)) >= TR_TOLERANCE && Data.RT(i_tr) >= 0
-                                % movement was earlier than "go" cue &
-                                % outside of tolerance
-    %                             screen_text_buff = {'MOVED TOO LATE!'};
-    %                             draw_text_flag = 1;
-    %                             Screen('DrawText', win, 'MOVED TOO SOON!', 680, 525);
-    %                             Screen('Flip', win);
+    
                             elseif abs(Data.RT(i_tr)) > TR_TOLERANCE && Data.RT(i_tr) < 0
                                 screen_text_buff = {'MOVED TOO SOON!'};
                                 draw_text_flag = 1;
-    %                             Screen('DrawText', win, 'MOVED TOO LATE!', 680, 525);
-    %                             Screen('Flip', win);
                             else
                                 % timing was within tolerance.. disp nothng
                             end
@@ -704,13 +661,11 @@ for block_num = [1] %[9 7] %[9, 7]%[9,7]  % no cues blocks: [1,2,9], cue blocks:
                             %if (toc(trial_time) - ITI_state_time) > FB_TIME
                             if ((GetSecs - trial_time) - ITI_state_time) > FB_TIME
                                 % extinguish feedback
-    %                             Screen('Flip', win);
                                 draw_text_flag = 0;
                             end
 %                             if (toc(trial_time) - ITI_state_time) > (ITI_TIME)
                             if ((GetSecs - trial_time) - ITI_state_time) > (ITI_TIME)
                                 % end trial
-    %                             Screen('Flip', win);
                                 draw_text_flag = 0;
                                 Data.Kinematics{i_tr} = kinematics(~isnan(kinematics(:,1)), :);
                                 Data.EventTimes{i_tr} = [image_capture_time; ...
